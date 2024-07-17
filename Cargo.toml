@@ -1,0 +1,9 @@
+[package]
+name = "syndica_interview"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.7.5"
+serde = { version = "1.0.204", features = ["derive"] }
+tokio = { version = "1.38.1", features = ["rt-multi-thread"] }
