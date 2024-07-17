@@ -46,7 +46,7 @@ async fn main() {
     let app = Router::new()
         .route("/health", get(|| async { "up" }))
         .route("/movie", post(post_movie))
-        .route("/movie/:id", get(get_movie))
+        .route("/movie/:movie_id", get(get_movie))
         .with_state(state);
 
     // run our app with hyper, listening globally on port 3000
@@ -54,6 +54,10 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
+// I know that the unwraps after the as_mut() once getting the lock for the state is not good and should have
+// proper error handling. Due to time I left them in but ideally would create error handling workflow similar to 
+// this for custom error types: https://docs.rs/axum/latest/axum/response/trait.IntoResponse.html#implementing-intoresponse
+// and have enum variants for different cases
 async fn post_movie(State(state): State<AppState>, Json(movie): Json<Movie>) -> Json<Value> {
     let movie_id = Uuid::new_v4().to_string();
     state.db.lock().as_mut().unwrap().insert(movie_id.clone(), movie);
@@ -61,26 +65,25 @@ async fn post_movie(State(state): State<AppState>, Json(movie): Json<Movie>) -> 
     Json(json!({"id": movie_id}))
 }
 
-// #[axum_macros::debug_handler]
+#[axum_macros::debug_handler]
 async fn get_movie(State(state): State<AppState>, Path(movie_id): Path<String>) -> Result<AppResponse<Movie>, StatusCode> {
 
     let cleaned_id = clean_id(movie_id);
 
-    if let Some(movie) = state.db.lock().unwrap().get(&cleaned_id) {
-        println!("Ok");
+    if let Some(movie) = state.db.lock().unwrap().get(&cleaned_id.to_string()) {
         Ok(AppResponse(movie.clone()))
     } else {
-        println!("Error");
         Err(StatusCode::INTERNAL_SERVER_ERROR)
     }
 }
 
-
+// I had to create his method to clean up the movie_id path variable as it came with leading and trailing '\'
+// and would not match to what was saved in state. 
 fn clean_id(movie_id: String) -> String {
-    let mut foo = movie_id.chars();
-    foo.next();
-    foo.next_back();
+    let mut result = movie_id.chars();
+    result.next();
+    result.next_back();
 
-    foo.as_str().to_string()
+    result.as_str().to_string()
 
 }
